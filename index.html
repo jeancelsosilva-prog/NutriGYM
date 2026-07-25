@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" type="image/png" href="./apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Ficha PPL">
 <title>Ficha PPL Híbrida</title>
 <style>
 /* ============================================================
@@ -838,6 +843,7 @@ const DEFAULT_VACATION_STATE = ()=>({
   pausedNormalState:null,
   returnProtocol:null, // null | reduced_4_6_days | reduced_7_plus_days
   stats:{ strengthCompleted:0, runsCompleted:0, restsCompleted:0, strengthSkipped:0, runsSkipped:0 },
+  lastReport:null, // persists across reload, unlike the old ephemeral variable
 });
 const DEFAULT_STATE = ()=>({
   version:CURRENT_VERSION,
@@ -951,7 +957,8 @@ function validateAndNormalizeImport(data){
     measurements: Array.isArray(data.measurements) ? data.measurements.filter(m=>m && typeof m.date==='string') : [],
     runs: Array.isArray(data.runs) ? data.runs.filter(r=>r && typeof r.date==='string') : [],
     recoveryLogs: Array.isArray(data.recoveryLogs) ? data.recoveryLogs.filter(r=>r && typeof r.date==='string') : [],
-    pendingRuns: Array.isArray(data.pendingRuns) ? data.pendingRuns.filter(r=>r && typeof r.cycleNumber==='number') : [],
+    pendingRuns: Array.isArray(data.pendingRuns) ? data.pendingRuns.filter(p=>p && (typeof p.cycleNumber==='number' || (p.source==='vacation' && typeof p.vacationBlockId==='string'))) : [],
+    records: (data.records && typeof data.records==='object') ? data.records : {},
     exerciseNotes: (data.exerciseNotes && typeof data.exerciseNotes==='object') ? data.exerciseNotes : {},
     substitutionPrefs: (data.substitutionPrefs && typeof data.substitutionPrefs==='object') ? data.substitutionPrefs : {},
     settings: (data.settings && typeof data.settings==='object') ? data.settings : undefined,
@@ -1102,6 +1109,16 @@ function lastWorkoutDate(workoutFilter){
   for(const s of state.sessions){
     const match = workoutFilter==='legs' ? (s.workoutId==='legsA'||s.workoutId==='legsB') : s.workoutId===workoutFilter;
     if(match && (!best || s.startedAt>best.startedAt)) best=s;
+  }
+  return best;
+}
+function lastSubstantialWorkoutDate(workoutFilter){
+  let best=null;
+  for(const s of state.sessions){
+    const match = workoutFilter==='legs' ? (s.workoutId==='legsA'||s.workoutId==='legsB') : s.workoutId===workoutFilter;
+    if(!match) continue;
+    const qualifies = savedSessionIsSubstantial(s) || s.vacationOutcome==='completed';
+    if(qualifies && (!best || s.startedAt>best.startedAt)) best=s;
   }
   return best;
 }
@@ -1291,6 +1308,7 @@ function startSession(workoutId, mode){
     id: uid('session'),
     workoutId, mode: mode||'completo',
     cycleSnapshot: info,
+    effectivePhase: info.phase, // the phase actually used for prescriptions/progression this session (see startVacationWorkout)
     phase: 'pretreino', // pretreino -> aquecimento -> exercicios -> corrida -> resumo
     startedAt: Date.now(),
     pausedMs: 0, pauseStart: null,
@@ -1313,8 +1331,11 @@ function startVacationWorkout(workoutId){
   s.vacationLevel=state.vacation.level;
   // The 24x72 mesociclo doesn't run during vacation, so whatever phase it was
   // frozen at (possibly adaptação/deload/reavaliação) shouldn't shape vacation
-  // prescriptions — always use the normal, full "desenvolvimento" template.
-  // Manual "modo reduzido" is still available via the usual mode selector.
+  // prescriptions or progression — always use the normal, full "desenvolvimento"
+  // template. effectivePhase (not cycleSnapshot.phase, which stays as historical
+  // context) is what every downstream consumer should read. Manual "modo
+  // reduzido" is still available via the usual mode selector.
+  s.effectivePhase = 'desenvolvimento';
   if(s.cycleSnapshot.phase!=='desenvolvimento'){
     s.exercises = buildSessionExercises(workoutId, s.mode, 'desenvolvimento');
   }
@@ -1420,8 +1441,8 @@ function savedSessionIsSubstantial(session){
   return setCompletionRatio(session.exercises, e=>e.prescription?e.prescription.sets:0, e=>e.sets) >= SUBSTANTIAL_SET_THRESHOLD;
 }
 function cycleTrainingComplete(cycleNumber, mesociclo){
-  const hasPush = state.sessions.some(s=>s.cycleNumber===cycleNumber && s.mesociclo===mesociclo && s.workoutId==='push' && savedSessionIsSubstantial(s));
-  const hasLegs = state.sessions.some(s=>s.cycleNumber===cycleNumber && s.mesociclo===mesociclo && (s.workoutId==='legsA'||s.workoutId==='legsB') && savedSessionIsSubstantial(s));
+  const hasPush = state.sessions.some(s=>s.programMode!=='vacation' && s.cycleNumber===cycleNumber && s.mesociclo===mesociclo && s.workoutId==='push' && savedSessionIsSubstantial(s));
+  const hasLegs = state.sessions.some(s=>s.programMode!=='vacation' && s.cycleNumber===cycleNumber && s.mesociclo===mesociclo && (s.workoutId==='legsA'||s.workoutId==='legsB') && savedSessionIsSubstantial(s));
   return hasPush && hasLegs;
 }
 function finalizeSession(forceAdvanceDecision, vacationDecision){
@@ -1429,7 +1450,7 @@ function finalizeSession(forceAdvanceDecision, vacationDecision){
   const durationMs = (Date.now()-s.startedAt) - (s.pausedMs||0);
   const record = {
     id:s.id, workoutId:s.workoutId, mode:s.mode,
-    cycleNumber:s.cycleSnapshot.cycleNumber, mesociclo:s.cycleSnapshot.mesociclo, dayIndex:s.cycleSnapshot.dayIndex, phase:s.cycleSnapshot.phase,
+    cycleNumber:s.cycleSnapshot.cycleNumber, mesociclo:s.cycleSnapshot.mesociclo, dayIndex:s.cycleSnapshot.dayIndex, phase:s.cycleSnapshot.phase, effectivePhase:s.effectivePhase,
     programMode: s.programMode||'normal', vacationBlockId: s.vacationBlockId||null, vacationLevel: s.vacationLevel||null,
     startedAt:s.startedAt, durationMs,
     exercises: s.exercises.map(e=>({
@@ -1453,12 +1474,13 @@ function finalizeSession(forceAdvanceDecision, vacationDecision){
   const isPpl = s.workoutId==='push'||s.workoutId==='pull'||s.workoutId==='legsA'||s.workoutId==='legsB';
   const substantial = activeSessionIsSubstantial(s.exercises);
   const countsAsComplete = vacationDecision==='concluido' || (vacationDecision!=='pendente' && substantial);
+  if(s.programMode==='vacation') record.vacationOutcome = isPpl ? (countsAsComplete?'completed':'pending') : 'completed';
   if((s.workoutId==='legsA' || s.workoutId==='legsB') && countsAsComplete){
     state.cycle.nextLegsVariant = s.workoutId==='legsA' ? 'B' : 'A';
   }
   if(s.programMode==='vacation'){
     if(isPpl){
-      completeVacationStep({ countsAsActiveDay:true, advancePpl: countsAsComplete ? s.workoutId.replace('legsA','legs').replace('legsB','legs') : null, forced: !countsAsComplete, stat: countsAsComplete?'strengthCompleted':'strengthSkipped' });
+      completeVacationStep({ countsAsActiveDay:true, advancePpl: countsAsComplete ? s.workoutId.replace('legsA','legs').replace('legsB','legs') : null, advanceQueue: countsAsComplete, stat: countsAsComplete?'strengthCompleted':'strengthSkipped' });
     }
   } else if(s.workoutId==='pull'){
     if(forceAdvanceDecision===true){ advanceTrainingCycle(); }
@@ -1615,6 +1637,7 @@ function navigate(hash){
   if(location.hash===hash) render(); else location.hash=hash;
 }
 function render(){
+  if(state.onboarded) syncVacationLifecycle();
   const parts=parseHash();
   if(!state.onboarded && parts[0]!=='onboarding'){ location.hash='#/onboarding'; return; }
   const route=parts[0]||'hoje';
@@ -1779,14 +1802,14 @@ function screenCorrigirCiclo(){
    SCREEN: HOJE
    ============================================================ */
 function screenHoje(){
-  if(isVacationActive() || isVacationScheduled()){
+  if(state.vacation && state.vacation.status!=='inactive'){
     return '<div class="screen">'+
       '<div class="topbar"><div><div class="greet">'+greeting()+', Jean</div><div class="daylabel">Modo Férias</div></div>'+
       '<button class="icon-btn" data-nav="#/ajustes" aria-label="Ajustes">'+icon('gear')+'</button></div>'+
       '<div class="stack">'+
         resumeBannerHTML()+
         vacationReturnBannerHTML()+
-        (isVacationActive() ? vacationCardHTML() : vacationScheduledCardHTML())+
+        (isVacationScheduled() ? vacationScheduledCardHTML() : vacationCardHTML())+
       '</div>'+
       bottomNavHTML('hoje')+
     '</div>';
@@ -2131,8 +2154,8 @@ function phaseExerciciosHTML(s,wk){
   ex.__isFirst = idx===0;
   const total=s.exercises.length;
   const pct=Math.round(100*idx/total);
-  const ctx={mode:s.mode, phase:s.cycleSnapshot.phase, wasSubstituted:!!ex.substitutedFrom, color:wk.color};
-  const deloadBanner = s.cycleSnapshot.phase==='deload'
+  const ctx={mode:s.mode, phase:s.effectivePhase, wasSubstituted:!!ex.substitutedFrom, color:wk.color};
+  const deloadBanner = s.effectivePhase==='deload'
     ? `<div class="banner banner-warn" style="margin-bottom:14px">${icon('warn')}<span>Deload: cargas sugeridas em ~${Math.round(DELOAD_LOAD_FACTOR*100)}% e RIR mais alto. Nenhuma série até perto da falha.</span></div>`
     : '';
   return `<div class="screen">
@@ -2422,6 +2445,7 @@ function consistencyStats(){
   const recoveryLast30=(state.recoveryLogs||[]).filter(r=>isWithinLastDays(r.date,30)).length;
   const doneMap={};
   state.sessions.forEach(s=>{
+    if(s.programMode==='vacation') return;
     const abs=s.mesociclo*10+s.cycleNumber;
     const type=(s.workoutId==='legsA'||s.workoutId==='legsB')?'legs':s.workoutId;
     doneMap[abs]=doneMap[abs]||new Set(); doneMap[abs].add(type);
@@ -2953,7 +2977,7 @@ function openSetSheet(isExtra){
   let suggestedLoad = rec && rec.nextSuggestedLoad!=null ? rec.nextSuggestedLoad : null;
   if(suggestedLoad==null && ex.logged.length){ const t=topSet(ex.logged.filter(s=>!s.isExtra)); if(t) suggestedLoad=t.load; }
   if(suggestedLoad==null && hist){ const t=topSet(hist.entry.sets); if(t) suggestedLoad=t.load; }
-  const isDeload = state.activeSession.cycleSnapshot.phase==='deload';
+  const isDeload = state.activeSession.effectivePhase==='deload';
   if(isDeload && suggestedLoad!=null){
     // Deload target: ~70% of the working weight, for THIS session's display
     // only — the stored nextSuggestedLoad reference is left untouched so
@@ -3025,7 +3049,7 @@ function saveSetFromDraft(){
 }
 function acceptProgression(){
   const ex=currentExercise(); if(!ex) return;
-  const ctx={mode:state.activeSession.mode, phase:state.activeSession.cycleSnapshot.phase, wasSubstituted:!!ex.substitutedFrom};
+  const ctx={mode:state.activeSession.mode, phase:state.activeSession.effectivePhase, wasSubstituted:!!ex.substitutedFrom};
   const sugg=evaluateProgression(ex.exId, ex, ex.logged, ctx);
   if(!sugg) return;
   const rec=state.records[ex.exId]||{};
@@ -3253,7 +3277,9 @@ function handleAction(el){
         if(p){ p.status='concluida'; p.runId=newRun.id; resolvedPending=true; }
       }
       if(d.programMode==='vacation'){
-        if(d.vacationStepKind==='zona2longa' || d.vacationStepKind==='qualidade'){
+        if(resolvedPending){
+          completeVacationPendingRun(); // the queue already moved forward once, at defer-time — never twice
+        } else if(d.vacationStepKind==='zona2longa' || d.vacationStepKind==='qualidade'){
           completeVacationStep({countsAsActiveDay:true, stat:'runsCompleted'});
         }
       }
@@ -3306,12 +3332,12 @@ function handleAction(el){
       toast('Modo férias ativado'); navigate('#/hoje'); return;
     }
     case 'vacation-not-training-today': _sheetType='vacation-not-training'; renderOverlay(); return;
-    case 'vacation-register-rest': { const plan=getVacationTodayPlan(); completeVacationStep({countsAsActiveDay:false, stat:'restsCompleted', forced: !!(plan&&plan.forced)}); toast('Descanso registrado'); break; }
-    case 'vacation-register-rest-from-sheet': { const plan=getVacationTodayPlan(); completeVacationStep({countsAsActiveDay:false, stat:'restsCompleted', forced: !!(plan&&plan.forced)}); _sheetType=null; toast('Descanso registrado'); break; }
+    case 'vacation-register-rest': { const plan=getVacationTodayPlan(); const shouldAdvance = !!(plan && plan.kind==='rest' && !plan.forced); completeVacationStep({countsAsActiveDay:false, stat:'restsCompleted', advanceQueue:shouldAdvance}); toast('Descanso registrado'); break; }
+    case 'vacation-register-rest-from-sheet': { const plan=getVacationTodayPlan(); const shouldAdvance = !!(plan && plan.kind==='rest' && !plan.forced); completeVacationStep({countsAsActiveDay:false, stat:'restsCompleted', advanceQueue:shouldAdvance}); _sheetType=null; toast('Descanso registrado'); break; }
     case 'vacation-skip-group-confirm': _sheetType='vacation-skip-group-confirm'; renderOverlay(); return;
     case 'vacation-skip-group-do': {
       const ppl=state.vacation.currentPpl;
-      completeVacationStep({countsAsActiveDay:false, advancePpl:ppl, forced:false, stat:'strengthSkipped'});
+      completeVacationStep({countsAsActiveDay:false, advancePpl:ppl, advanceQueue:true, stat:'strengthSkipped'});
       _sheetType=null; toast('Grupo marcado como pulado'); break;
     }
     case 'vacation-run-start': {
@@ -3339,9 +3365,23 @@ function handleAction(el){
     case 'vacation-pending-skip': { const p=vacationPendingRun(); if(p) p.status='pulada'; saveState(true); toast('Pendência removida'); break; }
     case 'vacation-end-confirm': _sheetType='vacation-end-confirm'; renderOverlay(); return;
     case 'vacation-end-do': {
-      const wasActive=isVacationActive();
-      if(wasActive){ _lastVacationReport=endVacation(null); _sheetType=null; navigate('#/ferias/relatorio'); return; }
+      const wasActive=isVacationActive() || (state.vacation && state.vacation.status==='ending');
+      if(wasActive){
+        state.vacation.status='ending';
+        if(!state.vacation.lastReport) state.vacation.lastReport=buildVacationReport();
+        saveState(true);
+        _sheetType=null;
+        navigate('#/ferias/relatorio');
+        return;
+      }
       state.vacation=DEFAULT_VACATION_STATE(); saveState(true); _sheetType=null; toast('Agendamento cancelado'); navigate('#/hoje'); return;
+    }
+    case 'vacation-finish-reanchor-situ': { endVacation({situation:el.dataset.situ}); _sheetType=null; toast('Férias encerradas e ciclo reancorado'); navigate('#/hoje'); return; }
+    case 'vacation-finish-reanchor-date': {
+      const inp=document.getElementById('feriasNextShift');
+      if(!inp || !inp.value){ toast('Escolha uma data'); return; }
+      endVacation({situation:'proximo-plantao', nextShiftDate:inp.value});
+      toast('Férias encerradas e ciclo reancorado'); navigate('#/hoje'); return;
     }
     case 'dismiss-return-protocol': state.vacation.returnProtocol=null; saveState(true); break;
 
@@ -3403,6 +3443,7 @@ function init(){
   loadState();
   applyTheme(state.settings.theme||'dark');
   attachGlobalListeners();
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible' && state.onboarded){ syncVacationLifecycle(); render(); } });
   render();
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
@@ -3451,6 +3492,14 @@ function getVacationTodayPlan(){
 function vacationOffersZona2Curta(){
   return isVacationActive() && state.vacation.level==='normal';
 }
+function vacationTodayZona2CurtaAvailable(){
+  if(!vacationOffersZona2Curta()) return false;
+  const today=todayISO();
+  const hadPushToday = state.sessions.some(s=>s.programMode==='vacation' && s.workoutId==='push' && todayISO(new Date(s.startedAt))===today);
+  if(!hadPushToday) return false;
+  const alreadyLogged = state.runs.some(r=>r.vacationStepKind==='zona2curta' && r.date===today);
+  return !alreadyLogged;
+}
 
 function startVacationBlock(startDate, endDate, level, firstPpl){
   const lvl = VACATION_QUEUES[level] ? level : 'normal';
@@ -3477,7 +3526,8 @@ function startVacationBlock(startDate, endDate, level, firstPpl){
 function completeVacationStep(opts){
   opts=opts||{};
   const v=state.vacation; if(!v) return;
-  if(!opts.forced){
+  const advanceQueue = opts.advanceQueue!==false; // default true; pass {advanceQueue:false} to log progress without consuming a queue slot
+  if(advanceQueue){
     if(opts.advancePpl){
       v.currentPpl = v.currentPpl==='push' ? 'pull' : v.currentPpl==='pull' ? 'legs' : 'push';
     }
@@ -3486,6 +3536,16 @@ function completeVacationStep(opts){
   v.consecutiveActiveDays = opts.countsAsActiveDay ? (v.consecutiveActiveDays+1) : 0;
   v.lastStepDate = todayISO();
   if(opts.stat) v.stats[opts.stat] = (v.stats[opts.stat]||0)+1;
+  saveState(true);
+}
+function completeVacationPendingRun(){
+  // Fulfilling an already-deferred obligation must NOT advance the queue a
+  // second time — the queue already moved forward once, at the moment the
+  // run was deferred. This only logs the completion stat and resets streaks.
+  const v=state.vacation; if(!v) return;
+  v.consecutiveActiveDays += 1;
+  v.lastStepDate = todayISO();
+  v.stats.runsCompleted = (v.stats.runsCompleted||0)+1;
   saveState(true);
 }
 function pushVacationRunObligation(){
@@ -3505,11 +3565,14 @@ function buildVacationReport(){
   const v=state.vacation;
   const sessions = state.sessions.filter(s=>s.vacationBlockId===v.blockId);
   const runs = state.runs.filter(r=>r.vacationBlockId===v.blockId);
+  const completed = sessions.filter(s=>s.vacationOutcome==='completed');
+  const pending = sessions.filter(s=>s.vacationOutcome==='pending');
   return {
-    startDate:v.startDate, endDate:v.endDate, level:v.level,
-    pushN: sessions.filter(s=>s.workoutId==='push').length,
-    pullN: sessions.filter(s=>s.workoutId==='pull').length,
-    legsN: sessions.filter(s=>s.workoutId==='legsA'||s.workoutId==='legsB').length,
+    startDate:v.startDate, endDate: todayISO()<v.endDate?v.endDate:todayISO(), level:v.level,
+    pushN: completed.filter(s=>s.workoutId==='push').length,
+    pullN: completed.filter(s=>s.workoutId==='pull').length,
+    legsN: completed.filter(s=>s.workoutId==='legsA'||s.workoutId==='legsB').length,
+    pendingStrengthN: pending.length,
     zona2N: runs.filter(r=>r.type==='zona2').length,
     qualidadeN: runs.filter(r=>r.type==='qualidade').length,
     qualityFormats: runs.filter(r=>r.type==='qualidade' && r.qualityFormat).reduce((acc,r)=>{ acc[r.qualityFormat]=(acc[r.qualityFormat]||0)+1; return acc; },{}),
@@ -3522,20 +3585,35 @@ function buildVacationReport(){
 }
 function endVacation(reanchor){
   const v=state.vacation;
-  const report = buildVacationReport();
+  const report = v.lastReport || buildVacationReport();
   if(reanchor && reanchor.situation){
     correctCycle(reanchor.situation, reanchor.nextShiftDate);
   }
   (state.pendingRuns||[]).forEach(p=>{ if(p.vacationBlockId===v.blockId && p.status==='adiada') p.status='pulada'; });
-  const lastPush=lastWorkoutDate('push'), lastPull=lastWorkoutDate('pull'), lastLegs=lastWorkoutDate('legs');
+  const lastPush=lastSubstantialWorkoutDate('push'), lastPull=lastSubstantialWorkoutDate('pull'), lastLegs=lastSubstantialWorkoutDate('legs');
   const daysSince = arr => Math.min.apply(null, arr.map(s=> s? daysBetween(todayISO(new Date(s.startedAt)),todayISO()) : 999));
   const gap = daysSince([lastPush,lastPull,lastLegs]);
   let returnProtocol=null;
   if(gap>=7) returnProtocol='reduced_7_plus_days';
   else if(gap>=4) returnProtocol='reduced_4_6_days';
-  state.vacation = Object.assign(DEFAULT_VACATION_STATE(), {returnProtocol});
+  state.vacation = Object.assign(DEFAULT_VACATION_STATE(), {returnProtocol, lastReport:report});
   saveState(true);
   return report;
+}
+function syncVacationLifecycle(){
+  const v=state.vacation; if(!v) return;
+  const today=todayISO();
+  let changed=false;
+  if(v.status==='scheduled' && today>=v.startDate){
+    v.status = today<=v.endDate ? 'active' : 'ending';
+    changed=true;
+  }
+  if(v.status==='active' && today>v.endDate){
+    v.status='ending';
+    if(!v.lastReport){ v.lastReport=buildVacationReport(); }
+    changed=true;
+  }
+  if(changed) saveState(true);
 }
 
 /* ============================================================
@@ -3551,6 +3629,14 @@ function vacationPendingRun(){
 }
 function vacationCardHTML(){
   const v=state.vacation;
+  if(v.status==='ending'){
+    return `<div class="card">
+      <span class="chip tag-run"><span class="chip-dot"></span>Modo Férias · ${VACATION_LEVEL_LABEL[v.level]}</span>
+      <h2 class="card-title" style="margin-top:10px">Período encerrado</h2>
+      <p class="card-sub" style="margin-top:4px">O término (${fmtDateFull(v.endDate)}) já passou. Finalize as férias para reancorar o ciclo 24x72 e ver o relatório.</p>
+      <button class="btn fab-primary btn-block" style="margin-top:14px" data-action="vacation-end-do">Ver relatório e encerrar</button>
+    </div>`;
+  }
   const plan=getVacationTodayPlan();
   const pendingRun=vacationPendingRun();
   let body='';
@@ -3563,13 +3649,16 @@ function vacationCardHTML(){
       </div>
     </div>`;
   } else if(!plan || plan.kind==='done-today'){
+    const curtaAvailable = vacationTodayZona2CurtaAvailable();
     body = `<p class="card-sub" style="margin-top:10px">Etapa de hoje já registrada. Volte amanhã para a próxima.</p>
+      ${curtaAvailable? `<button class="btn btn-outline btn-block" style="margin-top:10px" data-action="vacation-run-start" data-type="zona2curta">${icon('run')} + Zona 2 curta opcional (20–30 min)</button>`:''}
       <button class="btn btn-outline btn-block" style="margin-top:10px" data-nav="#/ferias/proximos">Ver próximos passos</button>`;
   } else if(plan.kind==='rest'){
     body = `<h2 class="card-title" style="margin-top:10px">Descanso</h2>
       ${plan.forced? `<p class="readonly-note" style="margin-top:4px">Você já somou 3 dias ativos seguidos. Um descanso protege a qualidade do próximo treino e da corrida.</p>`:''}
       <p class="card-sub" style="margin-top:6px">Caminhada de lazer, mobilidade leve ou descanso completo — não precisa registrar turismo como treino.</p>
       <button class="btn fab-primary btn-block" style="margin-top:14px" data-action="vacation-register-rest">Registrar descanso</button>
+      ${v.level==='travel' && !plan.forced? `<button class="btn btn-outline btn-block" style="margin-top:8px" data-action="vacation-run-start" data-type="opcional">${icon('run')} Registrar corrida opcional</button>`:''}
       <button class="link-btn" style="align-self:center;display:block;margin:8px auto 0" data-action="vacation-not-training-today">Não vou treinar hoje</button>`;
   } else if(plan.kind==='ppl'){
     const wk=WORKOUTS[plan.workoutId];
@@ -3673,9 +3762,17 @@ function vacationReturnBannerHTML(){
 /* ============================================================
    MODO FÉRIAS — activation, preview, and report screens
    ============================================================ */
+function inferNextPpl(){
+  const lastPush=lastWorkoutDate('push'), lastPull=lastWorkoutDate('pull'), lastLegs=lastWorkoutDate('legs');
+  const candidates=[{k:'push',s:lastPush},{k:'pull',s:lastPull},{k:'legs',s:lastLegs}].filter(c=>c.s);
+  if(!candidates.length) return 'push';
+  candidates.sort((a,b)=>b.s.startedAt-a.s.startedAt);
+  const mostRecent=candidates[0].k;
+  return mostRecent==='push'?'pull':mostRecent==='pull'?'legs':'push';
+}
 function ensureVacationSetupDraft(){
   if(!_formDraft || _formDraft.__type!=='vacation-setup'){
-    _formDraft = {__type:'vacation-setup', startDate:todayISO(), endDate:todayISO(new Date(Date.now()+21*86400000)), level:'normal', firstPpl:'push'};
+    _formDraft = {__type:'vacation-setup', startDate:todayISO(), endDate:todayISO(new Date(Date.now()+21*86400000)), level:'normal', firstPpl:inferNextPpl()};
   }
 }
 const VACATION_LEVEL_DESC = {
@@ -3686,6 +3783,8 @@ const VACATION_LEVEL_DESC = {
 function screenFeriasConfigurar(){
   ensureVacationSetupDraft();
   const d=_formDraft;
+  const inferred=inferNextPpl();
+  const inferredLabel = inferred==='push'?'Push':inferred==='pull'?'Pull':'Legs';
   return `<div class="screen no-bottom-pad">
     ${topBarSimple('Modo Férias',{back:'#/ajustes'})}
     <div class="stack">
@@ -3697,7 +3796,10 @@ function screenFeriasConfigurar(){
       </div>
       <p class="readonly-note">${VACATION_LEVEL_DESC[d.level]}</p>
       <div class="field"><label>Primeiro treino da fila</label>
-        <div class="pill-select">${[['push','Push'],['pull','Pull'],['legs','Legs']].map(([v,l])=>`<button class="${d.firstPpl===v?'active':''}" data-action="form-set" data-key="firstPpl" data-value="${v}">${l}</button>`).join('')}</div>
+        <div class="pill-select">
+          <button class="${d.firstPpl===inferred?'active':''}" data-action="form-set" data-key="firstPpl" data-value="${inferred}">Continuar fila atual (${inferredLabel})</button>
+          ${[['push','Push'],['pull','Pull'],['legs','Legs']].map(([v,l])=>`<button class="${d.firstPpl===v?'active':''}" data-action="form-set" data-key="firstPpl" data-value="${v}">${l}</button>`).join('')}
+        </div>
       </div>
       ${state.activeSession? `<div class="banner banner-warn">${icon('warn')}<span>Você tem uma sessão em andamento. Finalize ou descarte antes de ativar as férias.</span></div>` : ''}
       <button class="btn fab-primary btn-block" data-action="vacation-activate" ${state.activeSession?'disabled':''}>Ativar modo férias</button>
@@ -3727,28 +3829,43 @@ function screenFeriasProximos(){
   </div>`;
 }
 function screenFeriasRelatorio(){
-  const r=_lastVacationReport;
+  const r = state.vacation && state.vacation.lastReport;
   if(!r) return screenHoje();
+  const needsReanchor = state.vacation.status==='ending';
   const fmtCounts = Object.entries(r.qualityFormats||{}).map(([k,n])=>`${(QUALITY_FORMATS.find(f=>f.id===k)||{name:k}).name}: ${n}`).join(' · ');
   return `<div class="screen">
     ${topBarSimple('Férias concluídas',{back:'#/hoje'})}
     <div class="card">
       <p class="card-sub">${fmtDateFull(r.startDate)} — ${fmtDateFull(r.endDate)} · Nível ${VACATION_LEVEL_LABEL[r.level]}</p>
       <div class="grid-2" style="margin-top:12px">
-        <div class="stat-box"><div class="num">${r.pushN+r.pullN+r.legsN}</div><div class="lbl">Musculações</div></div>
+        <div class="stat-box"><div class="num">${r.pushN+r.pullN+r.legsN}</div><div class="lbl">Musculações concluídas</div></div>
         <div class="stat-box"><div class="num">${r.zona2N+r.qualidadeN}</div><div class="lbl">Corridas</div></div>
         <div class="stat-box"><div class="num">${r.restsCompleted}</div><div class="lbl">Descansos registrados</div></div>
         <div class="stat-box"><div class="num">${r.strengthSkipped}</div><div class="lbl">Grupos pulados</div></div>
         <div class="stat-box"><div class="num">${r.totalMinutes}</div><div class="lbl">Minutos de corrida</div></div>
         <div class="stat-box"><div class="num">${r.totalDistanceKm}</div><div class="lbl">Km percorridos</div></div>
       </div>
+      ${r.pendingStrengthN? `<p class="readonly-note" style="margin-top:8px">${r.pendingStrengthN} sessão(ões) ficaram pendentes (menos de 60%) e não entram na contagem de concluídas.</p>`:''}
       ${fmtCounts? `<p class="readonly-note" style="margin-top:10px">Formatos de qualidade: ${fmtCounts}</p>`:''}
       <p class="readonly-note" style="margin-top:10px">Push ${r.pushN} · Pull ${r.pullN} · Legs ${r.legsN} · Zona 2 ${r.zona2N} · Qualidade ${r.qualidadeN}</p>
     </div>
-    <button class="btn fab-primary btn-block" style="margin-top:14px" data-nav="#/corrigir-ciclo">Reancorar meu ciclo 24x72</button>
+    ${needsReanchor ? `
+      <div class="card" style="margin-top:14px">
+        <div class="section-label">Reancorar o ciclo 24x72</div>
+        <p class="card-sub">Antes de voltar ao modo normal, informe a situação atual da escala — isso é obrigatório, senão o ciclo continua calculado a partir de uma âncora antiga.</p>
+        <div class="opt-list" style="margin-top:10px">
+          <button class="opt-row" data-action="vacation-finish-reanchor-situ" data-situ="plantao" style="text-align:left">Hoje é plantão de 24h</button>
+          <button class="opt-row" data-action="vacation-finish-reanchor-situ" data-situ="pos-plantao" style="text-align:left">Hoje é pós-plantão</button>
+          <button class="opt-row" data-action="vacation-finish-reanchor-situ" data-situ="folga-plena" style="text-align:left">Hoje é folga plena</button>
+          <button class="opt-row" data-action="vacation-finish-reanchor-situ" data-situ="ultima-folga" style="text-align:left">Hoje é última folga</button>
+        </div>
+        <div class="divider"></div>
+        <div class="field"><label for="feriasNextShift">Ou informe a data do próximo plantão</label><input id="feriasNextShift" type="date" class="input"></div>
+        <button class="btn btn-outline btn-block" style="margin-top:10px" data-action="vacation-finish-reanchor-date">Usar esta data</button>
+      </div>
+    ` : `<button class="btn btn-outline btn-block" style="margin-top:14px" data-nav="#/hoje">Voltar para Hoje</button>`}
   </div>`;
 }
-let _lastVacationReport=null;
 </script>
 </body>
 </html>
