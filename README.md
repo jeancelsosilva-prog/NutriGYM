@@ -1,6 +1,6 @@
 # Ficha PPL Híbrida
 
-Ficha de treino mobile-first para um programa híbrido Push/Pull/Legs + corrida, sincronizado com uma escala de plantão 24h/72h. Arquivo único (`ficha-ppl-hibrida.html`), sem build, sem backend — HTML/CSS/JS puro, pensado para rodar no GitHub Pages e salvar tudo no navegador.
+Ficha de treino mobile-first para um programa híbrido Push/Pull/Legs + corrida, sincronizado com uma escala de plantão 24h/72h. Arquivo único (`index.html`), sem build, sem backend — HTML/CSS/JS puro, pensado para rodar no GitHub Pages e salvar tudo no navegador.
 
 ## Publicar
 
