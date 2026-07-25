@@ -842,6 +842,7 @@ const DEFAULT_VACATION_STATE = ()=>({
   consecutiveActiveDays:0,
   pausedNormalState:null,
   returnProtocol:null, // null | reduced_4_6_days | reduced_7_plus_days
+  activationPending:false, // start date arrived but a normal session was still open
   stats:{ strengthCompleted:0, runsCompleted:0, restsCompleted:0, strengthSkipped:0, runsSkipped:0 },
   lastReport:null, // persists across reload, unlike the old ephemeral variable
 });
@@ -3322,6 +3323,8 @@ function handleAction(el){
     }
     case 'import-do': importBackup(_importPending, el.dataset.mode); _sheetType=null; _importPending=null; toast('Backup importado'); navigate('#/ajustes'); return;
 
+    case 'vacation-activate-now': syncVacationLifecycle(true); toast('Modo férias ativado'); navigate('#/hoje'); return;
+    case 'vacation-discard-and-activate': discardSession(); syncVacationLifecycle(true); toast('Sessão descartada · modo férias ativado'); navigate('#/hoje'); return;
     case 'vacation-activate': {
       const d=_formDraft;
       if(!d || !d.startDate || !d.endDate){ toast('Preencha as datas'); return; }
@@ -3361,6 +3364,12 @@ function handleAction(el){
       _formDraft.programMode='vacation'; _formDraft.vacationBlockId=p.vacationBlockId; _formDraft.vacationStepKind=p.vacationStepKind;
       _formDraft.__resolvesPendingId=p.id;
       navigate('#/registrar-corrida'); return;
+    }
+    case 'vacation-pending-convert-z2': {
+      const p=vacationPendingRun(); if(!p) return;
+      p.type='zona2'; p.qualityFormat=null; p.vacationStepKind='zona2longa';
+      p.label='Zona 2 (convertida)'; p.minMin=25; p.maxMin=35;
+      saveState(true); toast('Convertida para Zona 2'); break;
     }
     case 'vacation-pending-skip': { const p=vacationPendingRun(); if(p) p.status='pulada'; saveState(true); toast('Pendência removida'); break; }
     case 'vacation-end-confirm': _sheetType='vacation-end-confirm'; renderOverlay(); return;
@@ -3523,6 +3532,16 @@ function startVacationBlock(startDate, endDate, level, firstPpl){
   (state.pendingRuns||[]).forEach(p=>{ if(p.status==='adiada') p.status='pulada'; });
   saveState(true);
 }
+function markVacationActiveDay(countsAsActiveDay){
+  // Streak is counted by DATE, not per action: two activities on the same day
+  // are still one active day. Prevents e.g. "PPL + deferred run same day" from
+  // counting twice and triggering a forced rest a day early.
+  const v=state.vacation;
+  const today=todayISO();
+  if(!countsAsActiveDay) v.consecutiveActiveDays = 0;
+  else if(v.lastStepDate !== today) v.consecutiveActiveDays += 1;
+  v.lastStepDate = today;
+}
 function completeVacationStep(opts){
   opts=opts||{};
   const v=state.vacation; if(!v) return;
@@ -3533,18 +3552,16 @@ function completeVacationStep(opts){
     }
     v.currentStepIndex = (v.currentStepIndex+1) % v.queue.length;
   }
-  v.consecutiveActiveDays = opts.countsAsActiveDay ? (v.consecutiveActiveDays+1) : 0;
-  v.lastStepDate = todayISO();
+  markVacationActiveDay(opts.countsAsActiveDay);
   if(opts.stat) v.stats[opts.stat] = (v.stats[opts.stat]||0)+1;
   saveState(true);
 }
 function completeVacationPendingRun(){
   // Fulfilling an already-deferred obligation must NOT advance the queue a
   // second time — the queue already moved forward once, at the moment the
-  // run was deferred. This only logs the completion stat and resets streaks.
+  // run was deferred. This only logs the completion stat.
   const v=state.vacation; if(!v) return;
-  v.consecutiveActiveDays += 1;
-  v.lastStepDate = todayISO();
+  markVacationActiveDay(true);
   v.stats.runsCompleted = (v.stats.runsCompleted||0)+1;
   saveState(true);
 }
@@ -3568,7 +3585,9 @@ function buildVacationReport(){
   const completed = sessions.filter(s=>s.vacationOutcome==='completed');
   const pending = sessions.filter(s=>s.vacationOutcome==='pending');
   return {
-    startDate:v.startDate, endDate: todayISO()<v.endDate?v.endDate:todayISO(), level:v.level,
+    startDate:v.startDate, plannedEndDate:v.endDate, actualEndDate:todayISO(),
+    endDate: todayISO()<v.endDate?v.endDate:todayISO(), // legacy field, kept so older persisted reports still render
+    level:v.level,
     pushN: completed.filter(s=>s.workoutId==='push').length,
     pullN: completed.filter(s=>s.workoutId==='pull').length,
     legsN: completed.filter(s=>s.workoutId==='legsA'||s.workoutId==='legsB').length,
@@ -3600,13 +3619,22 @@ function endVacation(reanchor){
   saveState(true);
   return report;
 }
-function syncVacationLifecycle(){
+function syncVacationLifecycle(force){
   const v=state.vacation; if(!v) return;
   const today=todayISO();
   let changed=false;
   if(v.status==='scheduled' && today>=v.startDate){
-    v.status = today<=v.endDate ? 'active' : 'ending';
-    changed=true;
+    // Don't flip mid-session: activating while a normal-mode workout is still
+    // open would leave the app in a hybrid state (vacation queue running, but
+    // a 24x72 session live). Hold and let the user decide.
+    const blockingSession = state.activeSession && state.activeSession.programMode!=='vacation';
+    if(blockingSession && !force){
+      if(!v.activationPending){ v.activationPending=true; changed=true; }
+    } else {
+      if(v.activationPending){ v.activationPending=false; }
+      v.status = today<=v.endDate ? 'active' : 'ending';
+      changed=true;
+    }
   }
   if(v.status==='active' && today>v.endDate){
     v.status='ending';
@@ -3641,12 +3669,19 @@ function vacationCardHTML(){
   const pendingRun=vacationPendingRun();
   let body='';
   if(pendingRun){
+    const alreadyTrainedToday = v.lastStepDate===todayISO();
+    const isQuality = pendingRun.type==='qualidade';
     body = `<div class="banner banner-info" style="margin-top:12px;flex-direction:column;align-items:stretch;gap:10px">
       <div style="display:flex;gap:10px;align-items:flex-start">${icon('run')}<div style="flex:1"><strong>Corrida de férias pendente:</strong> ${pendingRun.label} (${pendingRun.minMin}–${pendingRun.maxMin} min)</div></div>
-      <div class="btn-row">
-        <button class="btn btn-sm btn-outline" data-action="vacation-pending-skip">Pular</button>
-        <button class="btn btn-sm btn-primary" data-action="vacation-pending-resolve">Fazer agora</button>
-      </div>
+    </div>
+    ${alreadyTrainedToday ? `<div class="banner ${isQuality?'banner-danger':'banner-warn'}" style="margin-top:10px">${icon('warn')}<span>${isQuality
+        ? 'Você já concluiu uma sessão estruturada hoje. Fazer a corrida de qualidade agora aumenta bastante a carga do dia.'
+        : 'Você já concluiu uma sessão estruturada hoje. Esta corrida é leve, mas confirme se faz sentido somar as duas.'}</span></div>`:''}
+    <div class="stack-sm" style="margin-top:10px">
+      <button class="btn ${alreadyTrainedToday && isQuality ? 'btn-outline' : 'fab-primary'} btn-block" data-action="vacation-pending-resolve">${alreadyTrainedToday ? 'Fazer mesmo assim' : 'Fazer agora'}</button>
+      ${alreadyTrainedToday && isQuality ? `<button class="btn btn-outline btn-block" data-action="vacation-pending-convert-z2">Converter para Zona 2</button>` : ''}
+      ${alreadyTrainedToday ? `<button class="btn btn-outline btn-block" data-action="close-sheet">Deixar para amanhã</button>` : ''}
+      <button class="link-btn" style="align-self:center" data-action="vacation-pending-skip">Pular</button>
     </div>`;
   } else if(!plan || plan.kind==='done-today'){
     const curtaAvailable = vacationTodayZona2CurtaAvailable();
@@ -3704,6 +3739,20 @@ function vacationCardHTML(){
 }
 function vacationScheduledCardHTML(){
   const v=state.vacation;
+  if(v.activationPending){
+    const wk = state.activeSession ? WORKOUTS[state.activeSession.workoutId] : null;
+    return `<div class="card">
+      <span class="chip tag-warn"><span class="chip-dot"></span>Férias começaram</span>
+      <p class="card-title" style="margin-top:10px">Há um treino normal em andamento</p>
+      <p class="card-sub" style="margin-top:4px">O período de férias começou${wk?`, mas a sessão de ${wk.label} ainda está aberta`:''}. Escolha como seguir:</p>
+      <div class="stack-sm" style="margin-top:14px">
+        <button class="btn fab-primary btn-block" data-nav="#/treino/${state.activeSession?state.activeSession.workoutId:'push'}">Finalizar o treino primeiro</button>
+        <button class="btn btn-outline btn-block" data-action="vacation-activate-now">Ativar férias agora</button>
+        <button class="btn btn-ghost btn-block" data-action="vacation-discard-and-activate">Descartar sessão e ativar</button>
+      </div>
+      <p class="readonly-note" style="margin-top:10px">Se finalizar o treino, as férias entram sozinhas em seguida.</p>
+    </div>`;
+  }
   return `<div class="card">
     <span class="chip tag-run"><span class="chip-dot"></span>Modo Férias agendado</span>
     <p class="card-title" style="margin-top:10px">Começa em ${fmtDateFull(v.startDate)}</p>
@@ -3836,7 +3885,8 @@ function screenFeriasRelatorio(){
   return `<div class="screen">
     ${topBarSimple('Férias concluídas',{back:'#/hoje'})}
     <div class="card">
-      <p class="card-sub">${fmtDateFull(r.startDate)} — ${fmtDateFull(r.endDate)} · Nível ${VACATION_LEVEL_LABEL[r.level]}</p>
+      <p class="card-sub">${fmtDateFull(r.startDate)} — ${fmtDateFull(r.actualEndDate||r.endDate)} · Nível ${VACATION_LEVEL_LABEL[r.level]}</p>
+      ${r.plannedEndDate && r.actualEndDate && r.actualEndDate<r.plannedEndDate ? `<p class="readonly-note">Planejado até ${fmtDateFull(r.plannedEndDate)} · encerrado antes, em ${fmtDateFull(r.actualEndDate)}.</p>`:''}
       <div class="grid-2" style="margin-top:12px">
         <div class="stat-box"><div class="num">${r.pushN+r.pullN+r.legsN}</div><div class="lbl">Musculações concluídas</div></div>
         <div class="stat-box"><div class="num">${r.zona2N+r.qualidadeN}</div><div class="lbl">Corridas</div></div>
