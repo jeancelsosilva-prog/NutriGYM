@@ -1,0 +1,20 @@
+name = "appgym-nutrilogic"
+main = "worker.js"
+compatibility_date = "2026-01-15"
+
+# Backup/sync entre aparelhos. Crie com:
+#   wrangler kv namespace create SYNC
+# e cole o id devolvido aqui.
+[[kv_namespaces]]
+binding = "SYNC"
+id = "COLE_O_ID_AQUI"
+
+[vars]
+# Troque por https://SEU-USUARIO.github.io depois que publicar,
+# para o Worker parar de aceitar chamadas de qualquer origem.
+ALLOWED_ORIGIN = "*"
+# MODEL = "claude-sonnet-5"
+
+# Segredos (não vão no arquivo — ficam no Cloudflare):
+#   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put SYNC_TOKEN

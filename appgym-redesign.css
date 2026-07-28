@@ -1,0 +1,316 @@
+/* ============================================================================
+   appGYM — REDESENHO NA LINGUAGEM DO NUTRILOGIC
+   ----------------------------------------------------------------------------
+   Este arquivo substitui integralmente o CSS original do módulo de treino.
+   Nada aqui é conversão de token: cada componente foi reescrito seguindo as
+   mesmas decisões do NutriLogic — raio 22px nos cards, botões de 48px com
+   raio 14px, eyebrow em caixa alta acima do título, números em SF Pro Rounded,
+   medidas em monoespaçada, sombra dupla, sheet com raio 26px e grabber.
+   Escopo: tudo vive sob #mod-treino, então nunca vaza para o NutriLogic.
+   ========================================================================== */
+
+#mod-treino{ padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px); }
+/* reset removido: o NutriLogic já aplica *{margin:0;padding:0} globalmente.
+   Repetir aqui com #id vencia .switchbar e quebrava a barra de troca. */
+#mod-treino button{background:none;border:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#mod-treino :focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+#mod-treino .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- tipografia de dados (idêntica ao NutriLogic) ---------- */
+#mod-treino .mono{font-family:var(--font-data);font-variant-numeric:tabular-nums;font-size:.82em}
+#mod-treino .load-number,
+#mod-treino .timer-display,
+#mod-treino .stat-box .num,
+#mod-treino .duty-seg,
+#mod-treino .stepper .val{font-family:var(--font-display);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+/* ---------- layout ---------- */
+#mod-treino .screen{max-width:560px;margin:0 auto;padding:10px 16px 24px;animation:fade .18s ease}
+#mod-treino .screen.no-bottom-pad{padding-bottom:24px}
+#mod-treino .stack>*+*{margin-top:12px}
+#mod-treino .stack-sm>*+*{margin-top:8px}
+#mod-treino .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#mod-treino .row-start{display:flex;align-items:center;gap:8px}
+#mod-treino .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#mod-treino .divider{height:1px;background:var(--line);margin:14px 0;border:none}
+
+/* ---------- cabeçalho: eyebrow + h1, como todas as telas do NutriLogic ---------- */
+#mod-treino .topbar{
+  max-width:560px;margin:0 auto;width:100%;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:6px 16px 14px;
+}
+#mod-treino .topbar .greet,
+#mod-treino .section-label{
+  font-size:.7rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);
+}
+#mod-treino .section-label{margin-bottom:9px}
+#mod-treino .topbar .daylabel{
+  font-family:var(--font-display);font-size:1.55rem;font-weight:700;letter-spacing:-.02em;line-height:1.15;margin-top:2px;
+}
+#mod-treino .card-title{font-family:var(--font-display);font-size:1.12rem;font-weight:700;letter-spacing:-.01em}
+#mod-treino .card-sub{font-size:.82rem;color:var(--muted);margin-top:2px}
+#mod-treino .readonly-note{font-size:.82rem;color:var(--muted);line-height:1.5}
+#mod-treino .kbd-hint{font-size:.74rem;color:var(--faint)}
+
+/* ---------- card ---------- */
+#mod-treino .card,
+#mod-treino .exercise-card{
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r-lg);padding:16px;box-shadow:var(--shadow);
+}
+#mod-treino .card+.card{margin-top:12px}
+#mod-treino .stat-box{background:var(--surface-2);border-radius:var(--r-md);padding:12px 13px}
+#mod-treino .stat-box .num{font-size:1.15rem;font-weight:700}
+#mod-treino .stat-box .lbl{font-size:.72rem;color:var(--faint);margin-top:2px}
+#mod-treino .empty-state{text-align:center;padding:30px 18px;color:var(--muted)}
+#mod-treino .empty-state .ico{font-size:1.9rem;color:var(--line-strong);margin-bottom:8px}
+#mod-treino .empty-state p{font-size:.9rem}
+
+/* ---------- botões ---------- */
+#mod-treino .btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-height:48px;padding:0 18px;border-radius:14px;
+  font-weight:650;font-size:.95rem;border:1px solid transparent;
+  transition:transform .12s ease,background .15s ease;white-space:nowrap;
+}
+#mod-treino .btn:active{transform:scale(.975)}
+#mod-treino .btn-primary,
+#mod-treino .fab-primary{background:var(--accent);color:var(--on-accent);border-color:transparent}
+#mod-treino .fab-primary{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-height:56px;padding:0 18px;border-radius:14px;font-weight:650;font-size:1rem;
+  transition:transform .12s ease,background .15s ease;
+}
+#mod-treino .fab-primary:active{transform:scale(.975)}
+#mod-treino .btn-outline{background:var(--surface);border-color:var(--line-strong);color:var(--ink)}
+#mod-treino .btn-ghost{background:transparent;color:var(--muted);min-height:40px;padding:0 10px}
+#mod-treino .btn-danger{background:var(--bad-soft);color:var(--bad)}
+#mod-treino .btn-block{display:flex;width:100%}
+#mod-treino .btn-sm{min-height:36px;padding:0 13px;font-size:.84rem;border-radius:11px}
+#mod-treino .btn-lg{min-height:56px;font-size:1rem}
+#mod-treino .btn:disabled,
+#mod-treino .fab-primary:disabled{opacity:.45;pointer-events:none}
+#mod-treino .btn-row{display:flex;gap:10px}
+#mod-treino .btn-row .btn{flex:1}
+#mod-treino .icon-btn{
+  min-height:44px;min-width:44px;padding:0;border-radius:12px;
+  display:inline-flex;align-items:center;justify-content:center;color:var(--muted);
+}
+#mod-treino .icon-btn:active{background:var(--surface-2)}
+#mod-treino .link-btn{background:none;border:none;color:var(--accent);font-weight:650;font-size:.88rem;padding:8px 0;min-height:40px}
+
+/* ---------- ícones ---------- */
+#mod-treino .ic{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;line-height:0;vertical-align:middle}
+#mod-treino .ic svg{width:1.15em;height:1.15em;display:block}
+#mod-treino .icon-btn .ic svg{width:21px;height:21px}
+#mod-treino .media-slot .ic svg{width:24px;height:24px}
+
+/* ---------- chips (vocabulário de cor do NutriLogic) ---------- */
+#mod-treino .chip{
+  display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;
+  background:var(--surface-2);color:var(--muted);font-size:.78rem;font-weight:600;
+  border:1px solid transparent;white-space:nowrap;
+}
+#mod-treino .chip-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+#mod-treino .tag-push{background:var(--bad-soft);color:var(--bad)}
+#mod-treino .tag-pull{background:var(--accent-soft);color:var(--accent-ink)}
+#mod-treino .tag-legs{background:var(--citrine-soft);color:var(--citrine)}
+#mod-treino .tag-core{background:var(--surface-3);color:var(--ink)}
+#mod-treino .tag-run{background:var(--warn-soft);color:var(--warn)}
+#mod-treino .tag-idle{background:var(--surface-2);color:var(--faint)}
+#mod-treino .tag-warn{background:var(--warn-soft);color:var(--warn)}
+#mod-treino .tag-danger{background:var(--bad-soft);color:var(--bad)}
+
+/* ---------- segmentado ---------- */
+#mod-treino .segmented{display:flex;background:var(--surface-2);border-radius:13px;padding:4px;gap:4px}
+#mod-treino .segmented button{
+  flex:1;min-height:42px;border-radius:10px;font-weight:650;font-size:.88rem;color:var(--muted);
+  border:none;background:transparent;transition:background .15s ease,color .15s ease;
+}
+#mod-treino .segmented button.active{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+
+/* ---------- abas ---------- */
+#mod-treino .tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 8px;scrollbar-width:none}
+#mod-treino .tabs::-webkit-scrollbar{display:none}
+#mod-treino .tab-btn{
+  flex:none;border:1px solid transparent;background:var(--surface-2);color:var(--muted);
+  font-weight:600;font-size:.78rem;padding:6px 11px;border-radius:999px;min-height:36px;
+}
+#mod-treino .tab-btn.active{background:var(--accent-soft);color:var(--accent-ink);border-color:var(--accent)}
+
+/* ---------- formulários ---------- */
+#mod-treino .field{display:block}
+#mod-treino .field label{display:block;font-size:.78rem;font-weight:650;color:var(--muted);margin-bottom:6px}
+#mod-treino .input,
+#mod-treino .textarea,
+#mod-treino select.input{
+  width:100%;min-height:48px;padding:12px 14px;background:var(--surface);
+  border:1px solid var(--line-strong);border-radius:13px;font-size:1rem;appearance:none;color:var(--ink);
+}
+#mod-treino .textarea{min-height:84px;resize:vertical}
+#mod-treino .input:focus,
+#mod-treino .textarea:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+
+#mod-treino .opt-list{display:flex;flex-direction:column;gap:8px}
+#mod-treino .opt-row{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:13px 14px;border:1px solid var(--line);border-radius:var(--r-md);
+  background:var(--surface);min-height:56px;width:100%;text-align:left;color:inherit;
+}
+#mod-treino .opt-row:active{background:var(--surface-2)}
+
+#mod-treino .pill-select{display:flex;gap:8px;flex-wrap:wrap}
+#mod-treino .pill-select button{
+  border:1px solid transparent;background:var(--surface-2);color:var(--muted);
+  padding:6px 12px;border-radius:999px;font-weight:600;font-size:.8rem;min-height:36px;
+}
+#mod-treino .pill-select button.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink)}
+
+/* stepper: números em display, controles discretos */
+#mod-treino .stepper{display:flex;align-items:center;gap:10px}
+#mod-treino .stepper button{
+  width:44px;height:44px;border-radius:12px;border:1px solid var(--line-strong);
+  background:var(--surface);font-size:1.25rem;font-weight:600;color:var(--ink);
+  display:flex;align-items:center;justify-content:center;flex:none;
+}
+#mod-treino .stepper button:active{background:var(--surface-2)}
+#mod-treino .stepper .val{flex:1;text-align:center;font-size:1.4rem;font-weight:700}
+#mod-treino .stepper .unit{font-size:.78rem;color:var(--faint)}
+
+/* toggle idêntico ao do NutriLogic */
+#mod-treino .switch{position:relative;width:52px;height:31px;flex:none}
+#mod-treino .switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:2}
+#mod-treino .switch .track{position:absolute;inset:0;border-radius:999px;background:var(--surface-3);transition:background .18s;border:none}
+#mod-treino .switch .thumb{
+  position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .18s;
+}
+#mod-treino .switch input:checked + .track{background:var(--accent)}
+#mod-treino .switch input:checked + .track .thumb{transform:translateX(21px)}
+
+/* ---------- barras de progresso (linguagem .bar do NutriLogic) ---------- */
+#mod-treino .progress-track{position:relative;height:9px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+#mod-treino .progress-fill{position:absolute;inset:0 auto 0 0;border-radius:999px;background:var(--accent);transition:width .45s ease}
+
+/* ---------- faixa do ciclo 24x72 ---------- */
+#mod-treino .duty-strip{display:flex;gap:6px}
+#mod-treino .duty-seg{
+  flex:1;height:38px;border-radius:var(--r-sm);background:var(--surface-2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.78rem;font-weight:700;color:var(--faint);border:1px solid var(--line);
+}
+#mod-treino .duty-seg.past{opacity:.5}
+#mod-treino .duty-seg.now{border-color:transparent;color:var(--on-accent)}
+#mod-treino .duty-seg.now.d-idle{background:var(--faint)}
+#mod-treino .duty-seg.now.d-push{background:var(--bad)}
+#mod-treino .duty-seg.now.d-legs{background:var(--citrine);color:#10160A}
+#mod-treino .duty-seg.now.d-pull{background:var(--accent)}
+
+/* ---------- avisos (linguagem .note do NutriLogic) ---------- */
+#mod-treino .banner{
+  background:var(--surface-2);border-radius:var(--r-sm);padding:11px 13px;
+  font-size:.82rem;color:var(--muted);display:flex;gap:10px;align-items:flex-start;line-height:1.5;
+}
+#mod-treino .banner-info{background:var(--accent-soft);color:var(--accent-ink)}
+#mod-treino .banner-warn{background:var(--warn-soft);color:var(--warn)}
+#mod-treino .banner-danger{background:var(--bad-soft);color:var(--bad)}
+#mod-treino .banner .ic svg{width:17px;height:17px;flex:none}
+
+/* ---------- lista de séries ---------- */
+#mod-treino .set-table{width:100%;border-collapse:collapse;font-size:.86rem}
+#mod-treino .set-table th{
+  text-align:left;color:var(--faint);font-weight:700;font-size:.68rem;
+  text-transform:uppercase;letter-spacing:.06em;padding:0 6px 7px;
+}
+#mod-treino .set-table td{
+  padding:10px 6px;border-top:1px solid var(--line);
+  font-family:var(--font-data);font-variant-numeric:tabular-nums;font-size:.82rem;
+}
+#mod-treino .set-table tr.current td{font-family:var(--font-body);color:var(--faint);font-style:italic}
+#mod-treino .set-table td.check{font-family:var(--font-body);color:var(--accent);text-align:center}
+
+/* ---------- comandos técnicos ---------- */
+#mod-treino .cue-list{list-style:none;padding:0;display:flex;flex-direction:column;gap:7px}
+#mod-treino .cue-list li{display:flex;gap:8px;font-size:.88rem;color:var(--muted);line-height:1.45}
+#mod-treino .cue-list li::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent);flex:none;margin-top:.55em}
+
+/* ---------- mídia dos exercícios ---------- */
+#mod-treino .media-placeholder{display:flex;gap:8px}
+#mod-treino .media-slot{
+  flex:1;aspect-ratio:4/3;border-radius:var(--r-md);background:var(--surface-2);
+  border:1px dashed var(--line-strong);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:5px;color:var(--faint);
+  font-size:.72rem;text-align:center;padding:8px;
+}
+
+/* ---------- números grandes ---------- */
+#mod-treino .load-number{font-size:1.6rem;font-weight:700}
+#mod-treino .timer-display{font-size:2.6rem;font-weight:700;text-align:center;letter-spacing:-.03em}
+#mod-treino .timer-display.pulse{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* ---------- navegação inferior (mesma barra do NutriLogic) ---------- */
+#mod-treino .nav-bottom,
+#mod-treino .nav-session{
+  position:fixed;left:0;right:0;bottom:0;z-index:60;
+  background:var(--surface);background:color-mix(in srgb,var(--surface) 88%,transparent);
+  backdrop-filter:saturate(180%) blur(18px);-webkit-backdrop-filter:saturate(180%) blur(18px);
+  border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);
+}
+#mod-treino .nav-bottom-inner{
+  max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);height:var(--nav-h);
+}
+#mod-treino .nav-item{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:var(--faint);font-size:.66rem;font-weight:650;background:none;border:none;
+}
+#mod-treino .nav-item .ic svg{width:23px;height:23px;stroke-width:1.7}
+#mod-treino .nav-item.active{color:var(--accent)}
+#mod-treino .nav-item.active .ic svg{stroke-width:2.1}
+#mod-treino .nav-session-inner{
+  max-width:560px;margin:0 auto;display:flex;gap:8px;align-items:center;
+  height:var(--nav-h);padding:0 12px;
+}
+#mod-treino .nav-session-inner .btn{flex:1;min-height:44px}
+#mod-treino .nav-session-inner .btn.icon-only{flex:0 0 48px;padding:0}
+
+/* ---------- sheet (raio 26px + grabber, como o NutriLogic) ---------- */
+#mod-treino .overlay{
+  position:fixed;inset:0;z-index:100;background:rgba(8,16,12,.45);
+  backdrop-filter:blur(2px);display:flex;align-items:flex-end;justify-content:center;
+  animation:fade .18s ease;
+}
+#mod-treino .sheet{
+  width:100%;max-width:560px;background:var(--surface);
+  border-radius:26px 26px 0 0;box-shadow:var(--shadow-lift);
+  padding:8px 16px calc(20px + env(safe-area-inset-bottom));
+  max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  animation:sheetUp .26s cubic-bezier(.32,.72,0,1);
+}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
+#mod-treino .sheet-grab{width:38px;height:5px;border-radius:99px;background:var(--line-strong);margin:6px auto 12px}
+#mod-treino .sheet-title{font-family:var(--font-display);font-size:1.15rem;font-weight:700;margin-bottom:12px}
+#mod-treino .sheet details summary{cursor:pointer;list-style:none;font-weight:650;font-size:.88rem;color:var(--muted)}
+#mod-treino details summary::-webkit-details-marker{display:none}
+
+/* ---------- toast (idêntico ao NutriLogic) ---------- */
+#mod-treino .toast{
+  position:fixed;left:12px;right:12px;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px);
+  z-index:120;max-width:520px;margin:0 auto;background:var(--ink);color:var(--bg);
+  border-radius:15px;padding:13px 15px;display:flex;align-items:center;gap:12px;
+  box-shadow:var(--shadow-lift);font-size:.88rem;font-weight:600;
+  animation:toastUp .25s cubic-bezier(.32,.72,0,1);
+}
+@keyframes toastUp{from{transform:translateY(140%)}to{transform:none}}
+
+/* ---------- gráficos ---------- */
+#mod-treino svg.chart{width:100%;height:auto;display:block}
+#mod-treino .chart-grid line{stroke:var(--line);stroke-width:1}
+#mod-treino .chart-line{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+#mod-treino .chart-dot{fill:var(--accent)}
+#mod-treino .chart-milestone{stroke:var(--warn);stroke-dasharray:3 4;stroke-width:1.5}
+
+@media (prefers-reduced-motion: reduce){
+  #mod-treino *{animation-duration:.001ms !important;transition-duration:.001ms !important}
+}
