@@ -154,13 +154,23 @@
 
 #mod-treino .opt-list{display:flex;flex-direction:column;gap:8px}
 #mod-treino .opt-row{
-  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
   padding:13px 14px;border:1px solid var(--line);border-radius:var(--r-md);
   background:var(--surface);min-height:56px;width:100%;text-align:left;color:inherit;
 }
+/* o texto pode quebrar; o controle nunca encolhe nem é espremido */
+#mod-treino .opt-row > span:first-child,
+#mod-treino .opt-row > div:first-child{flex:1;min-width:0}
+#mod-treino .opt-row .switch,
+#mod-treino .opt-row .stepper{flex:0 0 auto}
 #mod-treino .opt-row:active{background:var(--surface-2)}
 
-#mod-treino .pill-select{display:flex;gap:8px;flex-wrap:wrap}
+#mod-treino .pill-select{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch}
+/* uma opção longa (ex.: "Continuar fila atual (Push)") ocupa a linha inteira
+   e deixa as curtas dividirem a linha seguinte, em vez de empurrar "Legs"
+   sozinho para uma terceira linha */
+#mod-treino .pill-select button.pill-wide{flex:1 0 100%}
+#mod-treino .pill-select button.pill-even{flex:1 1 0;min-width:0}
 #mod-treino .pill-select button{
   border:1px solid transparent;background:var(--surface-2);color:var(--muted);
   padding:6px 12px;border-radius:999px;font-weight:600;font-size:.8rem;min-height:36px;
@@ -168,7 +178,10 @@
 #mod-treino .pill-select button.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink)}
 
 /* stepper: números em display, controles discretos */
-#mod-treino .stepper{display:flex;align-items:center;gap:10px}
+/* .stepper do NutriLogic traz fundo, raio e padding; o do appGYM já tem
+   os botões desenhados, então o container fica neutro. */
+#mod-treino .stepper{display:flex;align-items:center;gap:10px;
+  background:none;border-radius:0;padding:0;min-height:0}
 #mod-treino .stepper button{
   width:44px;height:44px;border-radius:12px;border:1px solid var(--line-strong);
   background:var(--surface);font-size:1.25rem;font-weight:600;color:var(--ink);
@@ -179,9 +192,16 @@
 #mod-treino .stepper .unit{font-size:.78rem;color:var(--faint)}
 
 /* toggle idêntico ao do NutriLogic */
-#mod-treino .switch{position:relative;width:52px;height:31px;flex:none}
+/* NutriLogic usa .switch para a LINHA de ajuste (min-height:52px);
+   aqui .switch é o próprio botão. Zeramos o que vaza. */
+#mod-treino .switch{position:relative;display:block;width:52px;height:31px;
+  min-height:0;flex:0 0 auto;gap:0;align-items:initial;justify-content:initial}
 #mod-treino .switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:2}
-#mod-treino .switch .track{position:absolute;inset:0;border-radius:999px;background:var(--surface-3);transition:background .18s;border:none}
+/* No tema escuro a trilha em --surface-3 quase some contra o card e o toggle
+   vira uma bolinha branca flutuando. A borda dá contorno sem mudar a cor. */
+#mod-treino .switch .track{position:absolute;inset:0;border-radius:999px;background:var(--surface-3);
+  border:1px solid var(--line-strong);transition:background .18s,border-color .18s}
+#mod-treino .switch input:checked + .track{border-color:transparent}
 #mod-treino .switch .thumb{
   position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:50%;
   background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .18s;
@@ -281,12 +301,17 @@
   backdrop-filter:blur(2px);display:flex;align-items:flex-end;justify-content:center;
   animation:fade .18s ease;
 }
+/* NutriLogic ancora .sheet em position:fixed com transform:translateY(100%).
+   Aqui o painel vive dentro de .overlay (flex-end); sem zerar isso ele
+   desapareceria assim que a animação de entrada terminasse. */
 #mod-treino .sheet{
+  position:relative;left:auto;right:auto;bottom:auto;z-index:auto;
+  transform:none;transition:none;display:block;flex-direction:row;
   width:100%;max-width:560px;background:var(--surface);
   border-radius:26px 26px 0 0;box-shadow:var(--shadow-lift);
   padding:8px 16px calc(20px + env(safe-area-inset-bottom));
   max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
-  animation:sheetUp .26s cubic-bezier(.32,.72,0,1);
+  animation:sheetUp .26s cubic-bezier(.32,.72,0,1) both;
 }
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
 #mod-treino .sheet-grab{width:38px;height:5px;border-radius:99px;background:var(--line-strong);margin:6px auto 12px}
@@ -295,12 +320,15 @@
 #mod-treino details summary::-webkit-details-marker{display:none}
 
 /* ---------- toast (idêntico ao NutriLogic) ---------- */
+/* O .toast do NutriLogic fica escondido em translateY(140%) com transição.
+   Sem zerar, o toast do appGYM sumiria ao fim da animação de entrada. */
 #mod-treino .toast{
+  transform:none;transition:none;
   position:fixed;left:12px;right:12px;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px);
   z-index:120;max-width:520px;margin:0 auto;background:var(--ink);color:var(--bg);
   border-radius:15px;padding:13px 15px;display:flex;align-items:center;gap:12px;
   box-shadow:var(--shadow-lift);font-size:.88rem;font-weight:600;
-  animation:toastUp .25s cubic-bezier(.32,.72,0,1);
+  animation:toastUp .25s cubic-bezier(.32,.72,0,1) both;
 }
 @keyframes toastUp{from{transform:translateY(140%)}to{transform:none}}
 

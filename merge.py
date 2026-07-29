@@ -117,6 +117,25 @@ for _a, _b in [('Ficha PPL Híbrida', 'appGYM'), ('Ficha PPL', 'appGYM')]:
 n_script = re.sub(r'NutriLog(?!App)(?!ic)', 'NutriLogic', n_script)
 n_body   = re.sub(r'NutriLog(?!App)(?!ic)', 'NutriLogic', n_body)
 
+# ------------------------------------------------- saudação unificada
+old_greet = """function greeting(){
+  const h = new Date().getHours();
+  if(h<12) return 'Bom dia';
+  if(h<18) return 'Boa tarde';
+  return 'Boa noite';
+}"""
+assert old_greet in t_script, 'greeting do appGYM não encontrado'
+t_script = t_script.replace(old_greet, """function greeting(){
+  // regra única, definida na casca (ver SHELL.greeting)
+  return (typeof SHELL !== 'undefined') ? SHELL.greeting() : 'Olá';
+}""", 1)
+
+old_ngreet = 'var greet = h < 12 ? "Bom dia" : (h < 18 ? "Boa tarde" : "Boa noite");'
+assert old_ngreet in n_script, 'greeting do NutriLogic não encontrado'
+n_script = n_script.replace(old_ngreet,
+    'var greet = (typeof SHELL !== "undefined") ? SHELL.greeting() '
+    ': (h < 12 ? "Bom dia" : (h < 18 ? "Boa tarde" : "Boa noite"));', 1)
+
 # ------------------------------------------------- patch training JS
 # 1) render() must stand down while another module owns the screen
 t_script = t_script.replace(
@@ -181,6 +200,29 @@ SHELL_CSS = """
   white-space:nowrap;min-width:0;
 }
 .switchbar .seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.18)}
+/* ---- Seletor "refeições de marmita por dia" ----
+   O CSS marca o item ativo por [aria-pressed="true"], mas esse controle
+   define class="on". Sem estilo, nem "1" nem "2" ficam destacados e os dois
+   botões colados leem-se como o número 12. */
+#mod-dieta .seg button.on{
+  background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12);
+}
+
+/* ---- Caixas de macro (Meta calórica / Proteína / Carboidrato / Gordura) ----
+   A função stat() do NutriLogic cria <span>, <strong>, <span> — todos inline.
+   Sem empilhamento eles correm juntos numa linha só ("Meta calórica2.518") e a
+   faixa quebra em lugar aleatório. O CSS previa .hstat .l / .hstat .v, mas o JS
+   aplica .tiny.muted / .num / .tiny.mono.muted, então nada daquilo pegava.
+   Aqui empilhamos e devolvemos a tipografia pretendida. */
+#mod-dieta .hstat{display:flex;flex-direction:column;gap:3px}
+#mod-dieta .hstat > *{display:block}
+#mod-dieta .hstat > .tiny:first-child{
+  font-size:.7rem;font-weight:650;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--faint);line-height:1.3;
+}
+#mod-dieta .hstat > .num{font-size:1.15rem;font-weight:700;line-height:1.25;color:var(--ink)}
+#mod-dieta .hstat > .tiny.mono{font-size:.72rem;color:var(--faint);line-height:1.3}
+
 /* O toast do NutriLogic é markup fixo e se esconde só com translateY(140%).
    Vazio ele tem ~46px, logo desce ~64px — menos que os ~76px+ que o separam
    do fundo (--nav-h + 12 + safe-area). Resultado: uma barra clara vazia
@@ -222,7 +264,7 @@ SHELL_HTML = """
 <div class="mod" id="mod-inicio">
   <div class="launcher">
     <p class="eyebrow-l">NutriGYM</p>
-    <h1>Bom dia, Jean</h1>
+    <h1 id="launcher-greeting">Olá, Jean</h1>
     <p class="sub">Dois módulos, um app só. Os dados de cada um ficam separados e salvos neste navegador.</p>
 
     <button class="launch-card" data-go="dieta">
@@ -276,6 +318,20 @@ SHELL_JS = """
    ============================================================ */
 var SHELL = {
   active: 'inicio',
+  /* Saudação única para os dois módulos, no fuso do aparelho.
+     Faixas: madrugada 00:00-05:59 | dia 06:00-12:59
+             tarde 13:00-17:59     | noite 18:00-23:59 */
+  greeting: function () {
+    var h = new Date().getHours();
+    if (h < 6)  return 'Boa madrugada';
+    if (h < 13) return 'Bom dia';
+    if (h < 18) return 'Boa tarde';
+    return 'Boa noite';
+  },
+  refreshGreeting: function () {
+    var el = document.getElementById('launcher-greeting');
+    if (el) el.textContent = this.greeting() + ', Jean';
+  },
   resolve: function () {
     var h = (location.hash || '').replace(/^#\\/?/, '');
     if (!h || h === 'inicio') return 'inicio';
@@ -300,6 +356,7 @@ var SHELL = {
         b.classList.toggle('on', b.dataset.go === next);
       });
     }
+    this.refreshGreeting();
     if (next === 'treino' && typeof render === 'function') render();
     if (changed) window.scrollTo(0, 0);
   }
@@ -311,6 +368,9 @@ document.addEventListener('click', function (e) {
   SHELL.go(b.dataset.go);
 });
 window.addEventListener('hashchange', function () { SHELL.apply(); });
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible') SHELL.refreshGreeting();
+});
 """
 
 # ------------------------------------------------- compose
@@ -322,7 +382,7 @@ head = head.replace('<meta name="apple-mobile-web-app-title" content="NutriLog">
 # o favicon SVG embutido do NutriLogic (folha) dá lugar à nova marca
 head = re.sub(r'<link rel="icon" href="data:image/svg\+xml[^>]*>\s*', '', head)
 head += ('<meta name="apple-mobile-web-app-title" content="NutriGYM">\n'
-         '<link rel="apple-touch-icon" href="./app-icon-180.png">\n'
+         '<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">\n'
          '<link rel="icon" type="image/png" sizes="512x512" href="./app-icon-512.png">\n')
 
 out = []

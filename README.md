@@ -9,10 +9,11 @@ Sem build, sem backend obrigatório, sem CDN. HTML/CSS/JS puro, feito para GitHu
 Suba na **mesma pasta** do repositório:
 
 ```
-index.html          ← o app (os dois módulos)
-app-icon-180.png    ← ícone da tela de início (iOS)
-app-icon-512.png    ← favicon / PWA
-app-icon-1024.png   ← reserva (lojas, divulgação)
+index.html             ← o app (os dois módulos)
+apple-touch-icon.png   ← ícone da tela de início (iOS, 180px)
+app-icon-180.png       ← mesma arte, nome descritivo
+app-icon-512.png       ← favicon / PWA
+app-icon-1024.png      ← reserva (lojas, divulgação)
 ```
 
 Os arquivos de build (`merge.py`, `make_icon.py`, `appgym-redesign.css`, os dois originais) podem ir junto no repositório — não atrapalham o Pages e mantêm o projeto reconstruível.
@@ -70,9 +71,59 @@ Seta ascendente em degradê sobre o verde da marca. Gerado por `make_icon.py`, c
 
 Saída em **quadrado cheio, sem cantos arredondados**: o iOS aplica a própria máscara. Ícone já arredondado ficaria com borda dupla.
 
+O arquivo vai como `apple-touch-icon.png` porque, além da tag `<link rel="apple-touch-icon">`, o iOS procura esse caminho na raiz do site quando não encontra a tag. Ter os dois cobre os dois caminhos.
+
 ```bash
 python3 make_icon.py     # regenera os três tamanhos
 ```
+
+### Modos de treino do appGYM
+
+Completo, Reduzido e Recuperação mostravam a **mesma** lista: tanto o card de Hoje quanto a prévia liam `WORKOUTS[id].exercises`, a ficha crua, ignorando o modo. Agora ambos passam por `buildSessionExercises()`, a mesma função que monta o treino de verdade — então a contagem de séries e a lista refletem o que você vai fazer (Push completo 21 séries × reduzido 16).
+
+### Dias da escala
+
+Os quadrados D1–D4 viraram botões: tocar reancora a escala naquele dia. Antes só dava para mudar por "Corrigir ciclo".
+
+### Colisão de classes CSS
+
+Os dois apps compartilham 20 nomes de classe (`.card`, `.btn`, `.row`, `.switch`…). Escopar o appGYM sob `#mod-treino` resolve **metade** do problema: o `#id` vence a especificidade, mas **só nas propriedades que eu declaro**. Tudo que o NutriLogic declara e eu não, continua valendo.
+
+Isso causou três bugs reais:
+
+| Classe | Vazava | Efeito |
+|---|---|---|
+| `.switch` | `min-height:52px` | no NutriLogic `.switch` é a *linha* de ajuste; no appGYM é o *botão*. O toggle esticava até virar bola. |
+| `.sheet` | `position:fixed`, `transform:translateY(100%)` | painéis sumiam ao fim da animação de entrada |
+| `.toast` | `transform:translateY(140%)` | toast aparecia por 0,25s e desaparecia |
+
+Os dois últimos porque a animação não tinha `fill-mode`, então o elemento voltava ao `transform` herdado.
+
+`audit-vazamentos.js` compara as duas folhas e falha se qualquer propriedade estrutural voltar a vazar:
+
+```bash
+node audit-vazamentos.js
+```
+
+### Saudação
+
+Regra única em `SHELL.greeting()`, no fuso do aparelho. Os dois módulos e a tela inicial consultam ela — antes cada um tinha a sua, e a da tela inicial era texto fixo no HTML, então dizia "Bom dia" a qualquer hora.
+
+| Faixa | Saudação |
+|---|---|
+| 00:00 – 05:59 | Boa madrugada |
+| 06:00 – 12:59 | Bom dia |
+| 13:00 – 17:59 | Boa tarde |
+| 18:00 – 23:59 | Boa noite |
+
+As faixas são contíguas de propósito: 13:00 em ponto entra em "boa tarde" e 17:30–17:59 continua "boa tarde" até a noite começar às 18:00.
+
+### Correções de layout no NutriLogic
+
+Dois problemas eram do módulo original, não da fusão — corrigidos por sobreposição em `#mod-dieta`, sem tocar no arquivo original:
+
+- **Caixas de macro** (Meta calórica / Proteína / Carboidrato / Gordura): a função `stat()` cria `<span>`, `<strong>`, `<span>`, todos inline. Sem empilhamento, rótulo, valor e faixa corriam juntos numa linha só. Pior: o CSS previa `.hstat .l` e `.hstat .v`, mas o JS aplica `.tiny.muted` e `.num` — então a tipografia pretendida nunca chegava a valer.
+- **Seletor "refeições de marmita por dia"**: o CSS marca o ativo por `[aria-pressed="true"]`, mas esse controle usa `class="on"`, que não tem estilo. Nenhum dos dois botões ficava destacado e o par "1" "2" colado lia-se como o número **12**.
 
 ### Toast do NutriLogic
 
@@ -129,7 +180,7 @@ Cada módulo tem backup próprio, em Ajustes. **Faça os dois** — um não incl
 - Incremento de carga é por categoria de exercício, não por exercício individual.
 - Modo Férias: não dá para editar datas/nível de um bloco ativo (cancele e recrie); sem histórico navegável de sessões puladas.
 - Unidades fixas em kg/cm.
-- Testado por simulação de DOM (jsdom/Node): 33 verificações de fusão/redesign + 18 funcionais + 17 de layout + 8 do toast. **Não testado em Safari/iPhone real.**
+- Testado por simulação de DOM (jsdom/Node): 33 verificações de fusão/redesign + 18 funcionais + 17 de layout + 8 do toast + 19 de saudação + 6 de vazamento de CSS + 14 de UI + 8 do NutriLogic. **Não testado em Safari/iPhone real.**
 - O jsdom **não resolve `env()`** (safe-area), então nenhum teste automatizado cobre de fato o comportamento das áreas seguras. Foi justamente aí que apareceu o bug da barra de troca vazando para fora da tela. Layout que depende de `env()` só se confirma no aparelho.
 
 ## Arquivos
