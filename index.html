@@ -11,7 +11,7 @@
 <meta name="description" content="appGYM (treino) e NutriLogic (nutrição) no mesmo aplicativo.">
 <title>NutriGYM</title>
 <meta name="apple-mobile-web-app-title" content="NutriGYM">
-<link rel="apple-touch-icon" href="./app-icon-180.png">
+<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="512x512" href="./app-icon-512.png">
 
 <style>
@@ -695,7 +695,7 @@ ul.plain{list-style:none}
 <div class="mod" id="mod-inicio">
   <div class="launcher">
     <p class="eyebrow-l">NutriGYM</p>
-    <h1>Bom dia, Jean</h1>
+    <h1 id="launcher-greeting">Olá, Jean</h1>
     <p class="sub">Dois módulos, um app só. Os dados de cada um ficam separados e salvos neste navegador.</p>
 
     <button class="launch-card" data-go="dieta">
@@ -883,6 +883,20 @@ ul.plain{list-style:none}
    ============================================================ */
 var SHELL = {
   active: 'inicio',
+  /* Saudação única para os dois módulos, no fuso do aparelho.
+     Faixas: madrugada 00:00-05:59 | dia 06:00-12:59
+             tarde 13:00-17:59     | noite 18:00-23:59 */
+  greeting: function () {
+    var h = new Date().getHours();
+    if (h < 6)  return 'Boa madrugada';
+    if (h < 13) return 'Bom dia';
+    if (h < 18) return 'Boa tarde';
+    return 'Boa noite';
+  },
+  refreshGreeting: function () {
+    var el = document.getElementById('launcher-greeting');
+    if (el) el.textContent = this.greeting() + ', Jean';
+  },
   resolve: function () {
     var h = (location.hash || '').replace(/^#\/?/, '');
     if (!h || h === 'inicio') return 'inicio';
@@ -907,6 +921,7 @@ var SHELL = {
         b.classList.toggle('on', b.dataset.go === next);
       });
     }
+    this.refreshGreeting();
     if (next === 'treino' && typeof render === 'function') render();
     if (changed) window.scrollTo(0, 0);
   }
@@ -918,6 +933,9 @@ document.addEventListener('click', function (e) {
   SHELL.go(b.dataset.go);
 });
 window.addEventListener('hashchange', function () { SHELL.apply(); });
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible') SHELL.refreshGreeting();
+});
 </script>
 <script>
 /* ============================================================================
@@ -2657,7 +2675,7 @@ UI.renderToday = function () {
 
   $("#today-date").textContent = U.dateLong(date).toUpperCase();
   var h = new Date().getHours();
-  var greet = h < 12 ? "Bom dia" : (h < 18 ? "Boa tarde" : "Boa noite");
+  var greet = (typeof SHELL !== "undefined") ? SHELL.greeting() : (h < 12 ? "Bom dia" : (h < 18 ? "Boa tarde" : "Boa noite"));
   $("#today-greeting").textContent = greet + (App.profile.name ? ", " + App.profile.name : "");
 
   /* --- resumo principal --- */
@@ -5632,10 +5650,8 @@ function daysAgoLabel(iso){
   return diff+' dias atrás';
 }
 function greeting(){
-  const h = new Date().getHours();
-  if(h<12) return 'Bom dia';
-  if(h<18) return 'Boa tarde';
-  return 'Boa noite';
+  // regra única, definida na casca (ver SHELL.greeting)
+  return (typeof SHELL !== 'undefined') ? SHELL.greeting() : 'Olá';
 }
 function vibrate(pattern){
   try{ if(state.settings.vibration && navigator.vibrate) navigator.vibrate(pattern); }catch(e){}
