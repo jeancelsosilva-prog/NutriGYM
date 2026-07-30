@@ -85,6 +85,25 @@ Completo, Reduzido e Recuperação mostravam a **mesma** lista: tanto o card de 
 
 Os quadrados D1–D4 viraram botões: tocar reancora a escala naquele dia. Antes só dava para mudar por "Corrigir ciclo".
 
+### Marmitas
+
+`nutridb-marmitas.js` traz 8 marmitas LivUp modeladas por **componentes**, não por macros: cada uma é uma lista de `{alimento, g}` e todo valor nutricional é derivado da tabela `ALIMENTOS`. Corrigir o arroz integral numa linha recalcula todas as marmitas que o usam.
+
+`marmitas-bridge.js` deriva os macros com `calcMarmita()` e registra cada marmita como alimento do NutriLogic, entrando por `App.SEED_FOODS`. O `DB.load()` mescla alimentos novos do seed **sem sobrescrever edições suas** — então a ponte é idempotente e não atropela ajustes manuais.
+
+Como ficam registradas:
+
+| Campo | Valor | Por quê |
+|---|---|---|
+| `cat` | `pratos` | categoria que já existia |
+| `conf` | `baixa` | a gramagem da proteína vem do site, o resto é estimado por composição |
+| `up` | `true` | preparação industrial |
+| `portion` / `household` | porção real (400g / 430g) | lançar "1 marmita" sem calcular nada |
+
+O módulo inteiro fica em `window.NutriDBMarmitas` e `App.marmitas`, então `custoCaseiro()`, `gerarListaCompras()` e `compararCenarios()` seguem disponíveis — **sem interface ainda**, dá para chamar pelo console.
+
+Um detalhe do build: o cabeçalho do módulo tem `</script>` num exemplo de uso, dentro de comentário. Inlinado, isso fechava o bloco antes da hora. O `merge.py` agora escapa `</script` em **todo** JS que inlina.
+
 ### Colisão de classes CSS
 
 Os dois apps compartilham 20 nomes de classe (`.card`, `.btn`, `.row`, `.switch`…). Escopar o appGYM sob `#mod-treino` resolve **metade** do problema: o `#id` vence a especificidade, mas **só nas propriedades que eu declaro**. Tudo que o NutriLogic declara e eu não, continua valendo.
@@ -180,7 +199,7 @@ Cada módulo tem backup próprio, em Ajustes. **Faça os dois** — um não incl
 - Incremento de carga é por categoria de exercício, não por exercício individual.
 - Modo Férias: não dá para editar datas/nível de um bloco ativo (cancele e recrie); sem histórico navegável de sessões puladas.
 - Unidades fixas em kg/cm.
-- Testado por simulação de DOM (jsdom/Node): 33 verificações de fusão/redesign + 18 funcionais + 17 de layout + 8 do toast + 19 de saudação + 6 de vazamento de CSS + 14 de UI + 8 do NutriLogic. **Não testado em Safari/iPhone real.**
+- Testado por simulação de DOM (jsdom/Node): 33 verificações de fusão/redesign + 18 funcionais + 17 de layout + 8 do toast + 19 de saudação + 6 de vazamento de CSS + 17 de marmitas + 14 de UI + 8 do NutriLogic. **Não testado em Safari/iPhone real.**
 - O jsdom **não resolve `env()`** (safe-area), então nenhum teste automatizado cobre de fato o comportamento das áreas seguras. Foi justamente aí que apareceu o bug da barra de troca vazando para fora da tela. Layout que depende de `env()` só se confirma no aparelho.
 
 ## Arquivos
@@ -192,5 +211,7 @@ Cada módulo tem backup próprio, em Ajustes. **Faça os dois** — um não incl
 | `appgym-redesign.css` | Redesign do appGYM na linguagem do NutriLogic |
 | `appgym-original.html` | Módulo appGYM original |
 | `nutrilogic-original.html` | Módulo NutriLogic original |
+| `nutridb-marmitas.js` | Catálogo de marmitas (componentes, preços, rotina) |
+| `marmitas-bridge.js` | Registra as marmitas como alimentos do NutriLogic |
 | `worker.js` / `wrangler.toml` | Backend opcional |
 | `app-icon-*.png` | Ícones da tela de início |

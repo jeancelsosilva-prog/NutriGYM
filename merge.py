@@ -7,6 +7,13 @@ OUT   = 'index.html'
 nutri = open(NUTRI, encoding='utf-8').read()
 treino = open(TREINO, encoding='utf-8').read()
 
+def inline_js(src):
+    """Qualquer '</script' dentro do JS fecharia o bloco antes da hora — mesmo
+    dentro de comentário ou string. Escapar a barra é inócuo para o JS
+    ('<\\/script' e '</script' são equivalentes) e salva o parser do HTML."""
+    return src.replace('</script', '<\\/script')
+
+
 # ----------------------------------------------------------------- extract
 def split_block(src, tag):
     i = src.index('<' + tag + '>')
@@ -17,6 +24,9 @@ n_style  = split_block(nutri, 'style')
 n_script = split_block(nutri, 'script')
 n_head   = nutri[nutri.index('<head>') + 6: nutri.index('<style>')]
 n_body   = nutri[nutri.index('<body>') + 6: nutri.index('<script>')]
+
+marmitas = open('nutridb-marmitas.js', encoding='utf-8').read()
+ponte_marmitas = open('marmitas-bridge.js', encoding='utf-8').read()
 
 t_style  = split_block(treino, 'style')
 t_script = split_block(treino, 'script')
@@ -397,9 +407,11 @@ out.append(SWITCHBAR_HTML)
 out.append('<div class="mod" id="mod-dieta">' + n_body + '</div>')
 out.append('<div class="mod" id="mod-treino">'
            + '<div id="app"></div><div id="overlay-root"></div><div id="toast-root"></div></div>')
-out.append('<script>' + SHELL_JS + '</script>')
-out.append('<script>' + n_script + '</script>')
-out.append('<script>' + t_script + '</script>')
+out.append('<script>' + inline_js(SHELL_JS) + '</script>')
+out.append('<script>' + inline_js(marmitas) + '</script>')
+out.append('<script>' + inline_js(n_script) + '</script>')
+out.append('<script>' + inline_js(ponte_marmitas) + '</script>')
+out.append('<script>' + inline_js(t_script) + '</script>')
 out.append('<script>SHELL.apply();</script>')
 out.append('</body>\n</html>\n')
 
