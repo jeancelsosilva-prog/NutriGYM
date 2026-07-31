@@ -9,11 +9,13 @@ Sem build, sem backend obrigatório, sem CDN. HTML/CSS/JS puro, feito para GitHu
 Suba na **mesma pasta** do repositório:
 
 ```
-index.html             ← o app (os dois módulos)
-apple-touch-icon.png   ← ícone da tela de início (iOS, 180px)
-app-icon-180.png       ← mesma arte, nome descritivo
-app-icon-512.png       ← favicon / PWA
-app-icon-1024.png      ← reserva (lojas, divulgação)
+index.html                        ← o app (os dois módulos)
+manifest.webmanifest              ← nome, cor e ícones do app instalado
+apple-touch-icon.png              ← tela de início do iOS (180px)
+apple-touch-icon-167.png          ← iPad Pro
+apple-touch-icon-152.png          ← iPad
+apple-touch-icon-precomposed.png  ← iOS antigo
+app-icon-192.png / 512 / 1024     ← favicon, PWA, reserva
 ```
 
 Os arquivos de build (`merge.py`, `make_icon.py`, `appgym-redesign.css`, os dois originais) podem ir junto no repositório — não atrapalham o Pages e mantêm o projeto reconstruível.
@@ -64,6 +66,22 @@ A casca acrescenta a tela inicial (`#/inicio`), a barra de troca no topo de cada
 Fica **fora** dos dois módulos, de propósito. Quando morava dentro, o reset `#mod-treino *{margin:0;padding:0}` do appGYM vencia `.switchbar` na especificidade (tem `#id`) e zerava padding e centralização — a barra vazava para fora da tela só no appGYM. O reset também era redundante: o NutriLogic já aplica `*{margin:0;padding:0}` globalmente.
 
 O padding usa longhand com fallback em vez do shorthand `padding:calc(env(...)) 16px 8px`. No shorthand, se o navegador não parsear o `calc(env())`, perde junto o padding lateral — a mesma classe de falha.
+
+### Ícone sumiu na tela de início?
+
+Quase sempre é arquivo que não subiu junto com o `index.html`. Para confirmar, abra o PNG direto no navegador:
+
+```
+https://seuusuario.github.io/seurepo/apple-touch-icon.png
+```
+
+Se der 404, é isso. Há um script que testa todos de uma vez:
+
+```bash
+bash verificar-icones.sh https://seuusuario.github.io/seurepo
+```
+
+O `index.html` referencia vários tamanhos e um manifest justamente para não depender de um único arquivo. E lembre: se o atalho já existia, **apague e adicione de novo** — o iOS guarda o ícone em cache.
 
 ### Ícone
 

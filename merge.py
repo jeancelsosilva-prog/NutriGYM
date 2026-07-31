@@ -392,8 +392,16 @@ head = head.replace('<meta name="apple-mobile-web-app-title" content="NutriLog">
 # o favicon SVG embutido do NutriLogic (folha) dá lugar à nova marca
 head = re.sub(r'<link rel="icon" href="data:image/svg\+xml[^>]*>\s*', '', head)
 head += ('<meta name="apple-mobile-web-app-title" content="NutriGYM">\n'
+         # Vários tamanhos: o iOS escolhe o mais próximo do aparelho. Se um
+         # arquivo faltar no servidor, os outros ainda salvam o ícone.
          '<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">\n'
-         '<link rel="icon" type="image/png" sizes="512x512" href="./app-icon-512.png">\n')
+         '<link rel="apple-touch-icon" sizes="167x167" href="./apple-touch-icon-167.png">\n'
+         '<link rel="apple-touch-icon" sizes="152x152" href="./apple-touch-icon-152.png">\n'
+         '<link rel="apple-touch-icon-precomposed" href="./apple-touch-icon-precomposed.png">\n'
+         '<link rel="icon" type="image/png" sizes="192x192" href="./app-icon-192.png">\n'
+         '<link rel="icon" type="image/png" sizes="512x512" href="./app-icon-512.png">\n'
+         '<link rel="manifest" href="./manifest.webmanifest">\n'
+         '<meta name="theme-color" content="#106F51">\n')
 
 out = []
 out.append('<!DOCTYPE html>\n<html lang="pt-BR" data-theme="light">\n<head>')
