@@ -1,0 +1,17 @@
+{
+  "name": "NutriGYM",
+  "short_name": "NutriGYM",
+  "description": "appGYM (treino) e NutriLogic (nutrição) no mesmo aplicativo.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#106F51",
+  "theme_color": "#106F51",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "./app-icon-192.png",  "sizes": "192x192",   "type": "image/png" },
+    { "src": "./app-icon-512.png",  "sizes": "512x512",   "type": "image/png" },
+    { "src": "./app-icon-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
